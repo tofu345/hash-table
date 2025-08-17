@@ -7,24 +7,12 @@
 #include <stdint.h>
 #include <string.h>
 
-typedef struct {
-    const char* key; // key is NULL if empty
-    void* value;
-} ht_entry;
-
-struct ht {
-    ht_entry* entries;
-    size_t capacity;
-    size_t length;
-};
-
 #define INITIAL_CAPACITY 16
 
 ht* ht_create(void) {
     ht* table = malloc(sizeof(ht));
-    if (table == NULL) {
+    if (table == NULL)
         return NULL;
-    }
     table->length = 0;
     table->capacity = INITIAL_CAPACITY;
 
@@ -38,9 +26,8 @@ ht* ht_create(void) {
 
 void ht_destroy(ht* table) {
     for (size_t i = 0; i < table->capacity; i++) {
-        free((void*)table->entries[i].key);
+        free(table->entries[i].key);
     }
-
     free(table->entries);
     free(table);
 }
@@ -53,22 +40,18 @@ void ht_destroy(ht* table) {
 
 // Return 64-bit FNV-1a hash for key (NUL-terminated). See description:
 // https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function
-static uint64_t _hash_key(const char* key) {
+static size_t
+key_index(const char* key, int tbl_capacity) {
     uint64_t hash = FNV_OFFSET;
     for (const char* p = key; *p; p++) {
         hash ^= (uint64_t)(unsigned char)(*p);
         hash *= FNV_PRIME;
     }
-    return hash;
-}
-
-static size_t hash_index(const char* key, int capacity) {
-    uint64_t hash = _hash_key(key);
-    return (size_t)(hash & (uint64_t)(capacity - 1));
+    return (size_t)(hash & (uint64_t)(tbl_capacity - 1));
 }
 
 void* ht_get(ht* table, const char* key) {
-    size_t index = hash_index(key, table->capacity);
+    size_t index = key_index(key, table->capacity);
 
     // loop till we find empty entry
     while (table->entries[index].key != NULL) {
@@ -77,9 +60,8 @@ void* ht_get(ht* table, const char* key) {
         }
         // Key wasn't in this slot, move to next (linear probing).
         index++;
-        if (index >= table->capacity) {
+        if (index >= table->capacity)
             index = 0;
-        }
     }
     return NULL;
 }
@@ -87,7 +69,7 @@ void* ht_get(ht* table, const char* key) {
 static const char*
 ht_set_entry(ht_entry* entries, size_t capacity, const char* key,
             void* value, size_t* plength) {
-    size_t index = hash_index(key, capacity);
+    size_t index = key_index(key, capacity);
 
     while (entries[index].key != NULL) {
         if (strcmp(key, entries[index].key) == 0) {
@@ -96,16 +78,14 @@ ht_set_entry(ht_entry* entries, size_t capacity, const char* key,
         }
         // linear probing.
         index++;
-        if (index >= capacity) {
+        if (index >= capacity)
             index = 0;
-        }
     }
 
     if (plength != NULL) {
         key = strdup(key);
-        if (key == NULL) {
+        if (key == NULL)
             return NULL;
-        }
         (*plength)++;
     }
     entries[index].key = (char*)key;
@@ -113,16 +93,15 @@ ht_set_entry(ht_entry* entries, size_t capacity, const char* key,
     return key;
 }
 
-static bool ht_expand(ht* table) {
+static bool
+ht_expand(ht* table) {
     // allocate new entries array
     size_t new_capacity = table->capacity * 2;
-    if (new_capacity < table->capacity) {
+    if (new_capacity < table->capacity)
         return false; // overflow
-    }
     ht_entry* new_entries = calloc(new_capacity, sizeof(ht_entry));
-    if (new_entries == NULL) {
+    if (new_entries == NULL)
         return false;
-    }
 
     for (size_t i = 0; i < table->capacity; i++) {
         ht_entry entry = table->entries[i];
@@ -138,11 +117,10 @@ static bool ht_expand(ht* table) {
     return true;
 }
 
-const char* ht_set(ht* table, const char* key, void* value) {
-    assert(value != NULL);
-    if (value == NULL) {
+const char*
+ht_set(ht* table, const char* key, void* value) {
+    if (value == NULL)
         return NULL;
-    }
 
     if (table->length >= table->capacity / 2) {
         if (!ht_expand(table)) {
@@ -158,34 +136,36 @@ void* ht_remove(ht* table, const char* key) {
     ht_entry* entries = table->entries;
     size_t cap = table->capacity;
 
-    size_t i = hash_index(key, cap);
-    while (entries[i].key != NULL) {
-        if (strcmp(key, entries[i].key) == 0) {
-            entries[i].key = NULL;
+    size_t index = key_index(key, cap);
+    while (entries[index].key != NULL) {
+        if (strcmp(key, entries[index].key) == 0) {
+            entries[index].key = NULL;
             table->length--;
-            // this could case a use after free but value cannot be NULL
-            //
-            // side note: is this how use after frees happen?
-            void* val = entries[i].value;
+            // value cannot be NULL, so not unset
+            void* val = entries[index].value;
 
             // move entry in last collision to index
-            size_t j = i;
+            size_t j = index;
             while (true) {
                 const char* k = entries[j + 1].key;
-                if (k == NULL || i != hash_index(k, cap)) break;
+                if (k == NULL || key_index(k, cap) != index)
+                    break;
                 j++;
-                if (j >= cap) j = 0;
+                if (j >= cap)
+                    j = 0;
             }
-            if (j == i) return val;
+            if (j == index)
+                return val;
 
-            entries[i].key = entries[j].key;
-            entries[i].value = entries[j].value;
+            entries[index].key = entries[j].key;
+            entries[index].value = entries[j].value;
             entries[j].key = NULL;
             return val;
         }
         // linear probing.
-        i++;
-        if (i >= cap) i = 0;
+        index++;
+        if (index >= cap)
+            index = 0;
     }
 
     return NULL;

@@ -1,10 +1,14 @@
+#include "unity/unity.h"
 #include "ht.h"
 
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+
+void setUp(void) {}
+
+void tearDown(void) {}
 
 void exit_nomem(void) {
     fprintf(stderr, "out of memory\n");
@@ -22,7 +26,8 @@ bool ht_key_is_str(ht* tbl, const char* key, const char* expected_value) {
     return strcmp(val, expected_value) == 0;
 }
 
-void test_ht_set_get(void) {
+static void
+test_ht_set_get(void) {
     ht* tbl = ht_create();
     if (tbl == NULL) exit_nomem();
 
@@ -30,44 +35,42 @@ void test_ht_set_get(void) {
     ht_set(tbl, "bar", "foo");
     int num = 1;
     ht_set(tbl, "num", &num);
-    assert(ht_key_is_str(tbl, "foo", "bar"));
-    assert(ht_key_is_str(tbl, "bar", "foo"));
-    assert(ht_key_is(tbl, "num", &num));
+
+    TEST_ASSERT_EQUAL_STRING("bar", ht_get(tbl, "foo"));
+    TEST_ASSERT_EQUAL_STRING("foo", ht_get(tbl, "bar"));
+    TEST_ASSERT_EQUAL_INT(1, *(int*)ht_get(tbl, "num"));
 
     ht_destroy(tbl);
 }
 
-void test_ht_remove(void) {
+static void
+test_ht_remove(void) {
     ht* tbl = ht_create();
     if (tbl == NULL) exit_nomem();
 
     ht_set(tbl, "foo", "bar");
     ht_set(tbl, "bar", "foo");
-    assert(ht_length(tbl) == 2);
-    assert(ht_remove(tbl, "foo") != NULL);
-    assert(ht_remove(tbl, "foo") == NULL);
-    assert(ht_length(tbl) == 1);
-    assert(ht_remove(tbl, "bar") != NULL);
-    assert(ht_remove(tbl, "bar") == NULL);
-    assert(ht_length(tbl) == 0);
+    TEST_ASSERT_EQUAL_INT(2, ht_length(tbl));
+
+    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "foo"));
+    TEST_ASSERT_NULL(ht_remove(tbl, "foo"));
+    TEST_ASSERT_EQUAL_INT(1, ht_length(tbl));
+
+    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "bar"));
+    TEST_ASSERT_NULL(ht_remove(tbl, "bar"));
+    TEST_ASSERT_EQUAL_INT(0, ht_length(tbl));
 
     ht_set(tbl, "bar", "foo");
-    assert(ht_remove(tbl, "bar") != NULL);
-    assert(ht_remove(tbl, "bar") == NULL);
-    assert(ht_length(tbl) == 0);
+    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "bar"));
+    TEST_ASSERT_NULL(ht_remove(tbl, "bar"));
+    TEST_ASSERT_EQUAL_INT(0, ht_length(tbl));
 
     ht_destroy(tbl);
 }
 
 int main(void) {
-    // good idea?
-    void (*tests[]) (void) = {
-        test_ht_set_get,
-        test_ht_remove,
-    };
-    size_t len = sizeof(tests) / sizeof(tests[0]);
-    for (int i = 0; i < len; i++) {
-        tests[i]();
-    }
-    printf("all tests passed\n");
+    UNITY_BEGIN();
+    RUN_TEST(test_ht_set_get);
+    RUN_TEST(test_ht_remove);
+    return UNITY_END();
 }

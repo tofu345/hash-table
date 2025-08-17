@@ -1,6 +1,5 @@
-FILES = test_ht.c ht.c
-OUTFILE = test_ht
-CFLAGS = -g -o ${OUTFILE}
+CFLAGS = -g -Wall -Wextra -Werror
 
-demo: ${FILES} Makefile
-	@ gcc ${CFLAGS} ${FILES}
+main:
+	@ gcc ${CFLAGS} -o test_ht \
+		unity/unity.c test_ht.c ht.c

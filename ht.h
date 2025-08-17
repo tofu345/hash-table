@@ -6,7 +6,20 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-typedef struct ht ht;
+typedef struct {
+    void* key; // key is NULL if empty
+    void* value;
+} ht_entry;
+
+typedef bool (*compare_fn) (void*, void*);
+
+// hashing function: FNV-1a hash algorithm.
+typedef struct {
+    ht_entry* entries;
+    size_t capacity;
+    size_t length;
+    compare_fn cmp;
+} ht;
 
 ht* ht_create(void);
 
@@ -20,7 +33,8 @@ void* ht_get(ht* table, const char* key);
 // Set item with given key (NUL-terminated) to value (which must not be
 // NULL). If not already present in table, key is copied to newly
 // allocated memory (keys are freed automatically when ht_destroy is
-// called). Return address of copied key, or NULL if out of memory.
+// called). Return address of copied key, or NULL if out of memory or NULL
+// value.
 const char* ht_set(ht* table, const char* key, void* value);
 
 // Remove item with given key (NUL-terminated) and if exists return pointer to
