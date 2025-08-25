@@ -7,7 +7,7 @@
 #include <stdbool.h>
 
 typedef struct {
-    void* key; // key is NULL if empty
+    char* key; // key is NULL if empty
     void* value;
 } ht_entry;
 
