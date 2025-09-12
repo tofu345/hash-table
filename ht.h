@@ -1,63 +1,79 @@
-// from: https://benhoyt.com/writings/hash-table-in-c/
-
-#ifndef HT_H
-#define HT_H
+#pragma once
 
 #include <stddef.h>
 #include <stdbool.h>
 
+#define N 8
+
+// [key] NULL if empty
 typedef struct {
-    char* key; // key is NULL if empty
-    void* value;
+    const char *key;
+    void *value;
 } ht_entry;
 
-typedef bool (*compare_fn) (void*, void*);
+// https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics
+typedef struct ht_bucket {
+    ht_entry entries[N]; // NULL-terminated
+    struct ht_bucket *overflow;
+} ht_bucket;
 
-// hashing function: FNV-1a hash algorithm.
+typedef size_t hash_fn(const char *key, size_t num_buckets);
+
 typedef struct {
-    ht_entry* entries;
-    size_t capacity;
-    size_t length;
-    compare_fn cmp;
+    size_t length; // number of filled entries
+
+    ht_bucket *buckets;
+    size_t _buckets_length;
+
+    hash_fn *_hash;
 } ht;
 
-ht* ht_create(void);
+// from: https://benhoyt.com/writings/hash-table-in-c/
+// hash with FNV-1a algorithm. NOTE: its not secure, but it works.
+//
+// Returns 64-bit FNV-1a hash for key (NUL-terminated).
+size_t hash_fnv1a(const char *key, size_t num_buckets);
 
-// Free memory allocated for hash table, including allocated keys, not values.
-void ht_destroy(ht* table);
+// hash table with fnv1a hash function. returns NULL on err
+ht *ht_create(void);
 
-// Get item with given key (NUL-terminated) from hash table. Return
-// value (which was set with ht_set), or NULL if key not found.
-void* ht_get(ht* table, const char* key);
+// hash table with custom hash function. returns NULL on err
+ht *ht_create_with(hash_fn* hash);
 
-// Set item with given key (NUL-terminated) to value (which must not be
-// NULL). If not already present in table, key is copied to newly
-// allocated memory (keys are freed automatically when ht_destroy is
-// called). Return address of copied key, or NULL if out of memory or NULL
-// value.
-const char* ht_set(ht* table, const char* key, void* value);
+// Free memory allocated for hash table and copied keys, NOTE: not values.
+void ht_destroy(ht *table);
 
-// Remove item with given key (NUL-terminated) and if exists return pointer to
-// its value to be **freed by caller** or NULL if not found.
-void* ht_remove(ht* table, const char* key);
+// Get item with given key from hash table. Return value (which was set with
+// ht_set), or NULL if key not found.
+void *ht_get(ht *table, const char *key);
 
-size_t ht_length(ht* table);
+// Set item with given key (which must not be NULL) to value. If not already
+// present in table, the key is copied and owned by [table].
+//
+// Returns address of [key] on success.
+// Returns NULL if [key] is NULL or out of memory.
+const char *ht_set(ht *table, const char *key, void *value);
+
+// Remove item with given key and if exists return pointer to its value or NULL
+// if not found.
+void *ht_remove(ht *table, const char *key);
+
+void ht_print(ht *table);
 
 typedef struct {
-    const char* key;
-    void* value;
+    ht_entry *current;
 
     // Don't use these fields directly.
-    ht* _table;    // reference to hash table being iterated
-    size_t _index; // current index into ht._entries
+    ht *_table;
+    ht_bucket *_bucket;
+    size_t _bucket_idx; // index into `_table.buckets`
+    size_t _index;      // current index into `_bucket.entries`
 } hti;
 
 // Return new hash table iterator (for use with ht_next).
-hti ht_iterator(ht* table);
+hti ht_iterator(ht *table);
 
-// Move iterator to next item in hash table, update iterator's key and
-// value to current item, and return true. If there are no more items,
-// return false. Don't call ht_set during iteration.
-bool ht_next(hti* it);
-
-#endif
+// Move iterator to next item in hash table, update iterator's current
+// [ht_entry] to current item, and return true. If there are no more items,
+// return false. Do not mutate the table during iteration.
+bool ht_next(hti *it);

@@ -1,4 +1,4 @@
-CFLAGS = -g -Wall -Wextra -Werror
+CFLAGS = -g -Wall -Wextra
 
 main:
 	@ gcc ${CFLAGS} -o test_ht \

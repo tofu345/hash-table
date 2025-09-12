@@ -6,195 +6,278 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 
-#define INITIAL_CAPACITY 16
+#define FNV_OFFSET 14695981039346656037UL
+#define FNV_PRIME 1099511628211UL
 
-ht* ht_create(void) {
-    ht* table = malloc(sizeof(ht));
-    if (table == NULL)
-        return NULL;
+size_t
+hash_fnv1a(const char *key, size_t num_buckets) {
+    uint64_t hash = FNV_OFFSET;
+    for (const char *p = key; *p; p++) {
+        hash ^= (uint64_t)(unsigned char)(*p);
+        hash *= FNV_PRIME;
+    }
+    return (size_t)(hash & (uint64_t)(num_buckets - 1));
+}
+
+bool
+str_equal(const char *key1, const char *key2) {
+    return strcmp(key1, key2) == 0;
+}
+
+ht *
+ht_create_with(hash_fn* hash) {
+    ht *table = malloc(sizeof(ht));
+    if (table == NULL) return NULL;
+    table->_hash = hash;
     table->length = 0;
-    table->capacity = INITIAL_CAPACITY;
-
-    table->entries = calloc(table->capacity, sizeof(ht_entry));
-    if (table->entries == NULL) {
-        free(table); // error, free table before return
+    table->_buckets_length = N;
+    table->buckets = calloc(N, sizeof(ht_bucket));
+    if (table->buckets == NULL) {
+        free(table);
         return NULL;
     }
     return table;
 }
 
-void ht_destroy(ht* table) {
-    for (size_t i = 0; i < table->capacity; i++) {
-        free(table->entries[i].key);
+ht *
+ht_create(void) {
+    return ht_create_with(&hash_fnv1a);
+}
+
+static void
+bucket_destroy(ht_bucket *bucket) {
+    for (size_t j = 0; j < N; j++) {
+        ht_entry *entry = &bucket->entries[j];
+        if (entry->key == NULL) break;
+        free((void *)entry->key);
     }
-    free(table->entries);
+    if (bucket->overflow != NULL)
+        bucket_destroy(bucket->overflow);
+}
+
+void
+ht_destroy(ht *table) {
+    for (size_t i = 0; i < table->_buckets_length; i++) {
+        bucket_destroy(&table->buckets[i]);
+    }
+    free(table->buckets);
     free(table);
 }
 
-// FNV-1a hash algorithm. FNV is not a randomized or cryptographic hash
-// function, so it’s possible for an attacker to create keys with a lot
-// of collisions and cause lookups to slow way down.
-#define FNV_OFFSET 14695981039346656037UL
-#define FNV_PRIME 1099511628211UL
-
-// Return 64-bit FNV-1a hash for key (NUL-terminated). See description:
-// https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function
-static size_t
-key_index(const char* key, int tbl_capacity) {
-    uint64_t hash = FNV_OFFSET;
-    for (const char* p = key; *p; p++) {
-        hash ^= (uint64_t)(unsigned char)(*p);
-        hash *= FNV_PRIME;
-    }
-    return (size_t)(hash & (uint64_t)(tbl_capacity - 1));
-}
-
-void* ht_get(ht* table, const char* key) {
-    size_t index = key_index(key, table->capacity);
-
-    // loop till we find empty entry
-    while (table->entries[index].key != NULL) {
-        if (strcmp(key, table->entries[index].key) == 0) {
-            return table->entries[index].value;
+// return [value] of [key] in [bucket] or its [overflows].
+static void *
+bucket_get_value(ht_bucket *bucket, const char *key) {
+    while (bucket != NULL) {
+        for (size_t i = 0; i < N; i++) {
+            if (bucket->entries[i].key == NULL)
+                return NULL;
+            if (str_equal(key, bucket->entries[i].key))
+                return bucket->entries[i].value;
         }
-        // Key wasn't in this slot, move to next (linear probing).
-        index++;
-        if (index >= table->capacity)
-            index = 0;
+        bucket = bucket->overflow;
     }
     return NULL;
 }
 
-static const char*
-ht_set_entry(ht_entry* entries, size_t capacity, const char* key,
-            void* value, size_t* plength) {
-    size_t index = key_index(key, capacity);
-
-    while (entries[index].key != NULL) {
-        if (strcmp(key, entries[index].key) == 0) {
-            entries[index].value = value;
-            return entries[index].key;
+// return [ht_bucket] that contains of [key] and set [*idx] to index, or NULL
+// if not found.
+static ht_bucket *
+bucket_get(ht* table, const char *key, size_t *idx) {
+    size_t bucket_idx = table->_hash(key, table->_buckets_length);
+    ht_bucket *bucket = &table->buckets[bucket_idx];
+    while (bucket != NULL) {
+        for (*idx = 0; *idx < N; (*idx)++) {
+            if (bucket->entries[*idx].key == NULL)
+                return NULL;
+            if (str_equal(key, bucket->entries[*idx].key))
+                return bucket;
         }
-        // linear probing.
-        index++;
-        if (index >= capacity)
-            index = 0;
+        bucket = bucket->overflow;
+    }
+    return NULL;
+}
+
+static void *
+bucket_set(ht* table, ht_bucket *bucket, const char *key, void *value,
+        bool copy_key) {
+    for (size_t i = 0; i < N; i++) {
+        if (bucket->entries[i].key == NULL) {
+            if (copy_key) {
+                key = strdup(key);
+                if (key == NULL) return NULL;
+            }
+            bucket->entries[i].key = key;
+            bucket->entries[i].value = value;
+            table->length++;
+            return value;
+
+        } else if (str_equal(key, bucket->entries[i].key)) {
+            bucket->entries[i].value = value;
+            return value;
+        }
     }
 
-    if (plength != NULL) {
-        key = strdup(key);
-        if (key == NULL)
-            return NULL;
-        (*plength)++;
+    if (bucket->overflow != NULL)
+        return bucket_set(table, bucket->overflow, key, value, copy_key);
+    else {
+        ht_bucket *new_bucket = calloc(1, sizeof(ht_bucket));
+        if (new_bucket == NULL) return NULL;
+        new_bucket->entries[0].key = key;
+        new_bucket->entries[0].value = value;
+        table->length += 1;
+        bucket->overflow = new_bucket;
+        return value;
     }
-    entries[index].key = (char*)key;
-    entries[index].value = value;
+}
+
+// returns index of last not-null key in [bucket]
+int
+bucket_last(ht_bucket *bucket) {
+    for (int i = N - 1; i > 0; i--) {
+        if (bucket->entries[i].key != NULL) {
+            return i + 1;
+        }
+    }
+    return 0;
+}
+
+void *
+ht_get(ht *table, const char *key) {
+    if (key == NULL) return NULL;
+    size_t index = table->_hash(key, table->_buckets_length);
+    return bucket_get_value(&table->buckets[index], key);
+}
+
+static const char *
+ht_set_entry(ht *table, const char *key, void *value, bool copy_key) {
+    size_t index = table->_hash(key, table->_buckets_length);
+    ht_bucket *bucket = &table->buckets[index];
+    bucket_set(table, bucket, key, value, copy_key);
     return key;
 }
 
+// create new bucket list with double number of current buckets and NOTE
+// immediately move all elements to new bucket list.
+// Returns false if no memory or could not move all elements.
 static bool
-ht_expand(ht* table) {
-    // allocate new entries array
-    size_t new_capacity = table->capacity * 2;
-    if (new_capacity < table->capacity)
-        return false; // overflow
-    ht_entry* new_entries = calloc(new_capacity, sizeof(ht_entry));
-    if (new_entries == NULL)
-        return false;
+ht_expand(ht *table) {
+    size_t new_length = table->length * 2;
+    if (new_length < table->length) return false; // overflow
 
-    for (size_t i = 0; i < table->capacity; i++) {
-        ht_entry entry = table->entries[i];
-        if (entry.key != NULL) {
-            ht_set_entry(new_entries, new_capacity, entry.key,
-                    entry.value, NULL);
+    ht_bucket *old_buckets = table->buckets,
+              *new_buckets = calloc(new_length, sizeof(ht_bucket));
+    if (new_buckets == NULL) return false;
+    table->buckets = new_buckets;
+
+    // TODO: expand on a per bucket basis?
+    for (size_t i = 0; i < table->length; i++) {
+        ht_entry *p = &table->buckets[i].entries[0];
+        for (; p->key; p++) {
+            if (ht_set_entry(table, p->key, p->value, false) == NULL) {
+                table->buckets = old_buckets;
+                free(new_buckets);
+                return false;
+            }
         }
     }
 
-    free(table->entries);
-    table->entries = new_entries;
-    table->capacity = new_capacity;
+    free(old_buckets);
     return true;
 }
 
 const char*
-ht_set(ht* table, const char* key, void* value) {
-    if (value == NULL)
-        return NULL;
+ht_set(ht *table, const char *key, void *value) {
+    if (key == NULL) return NULL;
 
-    if (table->length >= table->capacity / 2) {
+    size_t half_full = table->length >= (table->_buckets_length * N) / 2;
+    if (half_full) {
         if (!ht_expand(table)) {
             return NULL;
         }
     }
 
-    return ht_set_entry(table->entries, table->capacity, key, value,
-                &table->length);
+    if (ht_set_entry(table, key, value, true) == NULL)
+	return NULL;
+    return key;
 }
 
-void* ht_remove(ht* table, const char* key) {
-    ht_entry* entries = table->entries;
-    size_t cap = table->capacity;
+void *
+ht_remove(ht *table, const char *key) {
+    if (key == NULL) return NULL;
+    size_t i;
+    ht_bucket *bucket = bucket_get(table, key, &i);
+    if (bucket == NULL) return NULL;
 
-    size_t index = key_index(key, cap);
-    while (entries[index].key != NULL) {
-        if (strcmp(key, entries[index].key) == 0) {
-            entries[index].key = NULL;
-            table->length--;
-            // value cannot be NULL, so not unset
-            void* val = entries[index].value;
+    void* value = bucket->entries[i].value;
+    int last = bucket_last(bucket);
+    bucket->entries[i] = bucket->entries[last];
+    bucket->entries[last].key = NULL;
+    table->length--;
+    return value;
+}
 
-            // move entry in last collision to index
-            size_t j = index;
-            while (true) {
-                const char* k = entries[j + 1].key;
-                if (k == NULL || key_index(k, cap) != index)
-                    break;
-                j++;
-                if (j >= cap)
-                    j = 0;
-            }
-            if (j == index)
-                return val;
-
-            entries[index].key = entries[j].key;
-            entries[index].value = entries[j].value;
-            entries[j].key = NULL;
-            return val;
-        }
-        // linear probing.
-        index++;
-        if (index >= cap)
-            index = 0;
+void
+ht_print(ht *table) {
+    for (size_t i = 0; i < table->_buckets_length; i++) {
+        printf("bucket %zu\n", i);
+        ht_bucket *bucket = &table->buckets[i];
+	while (bucket != NULL) {
+	    ht_entry *p = &bucket->entries[0];
+	    for (; p->key; p++) {
+		printf("> %s\n", p->key);
+	    }
+	    if (bucket->overflow) {
+		bucket = bucket->overflow;
+		puts("-");
+	    }
+	}
+        puts("");
     }
-
-    return NULL;
 }
 
-size_t ht_length(ht* table) {
-    return table->length;
-}
-
-hti ht_iterator(ht* table) {
+hti
+ht_iterator(ht *table) {
     hti it;
     it._table = table;
+    it._bucket = &table->buckets[0];
+    it._bucket_idx = 1;
     it._index = 0;
     return it;
 }
 
-bool ht_next(hti *it) {
-    // loop till end of entries array
-    ht* table = it->_table;
-    while (it->_index < table->capacity) {
-        size_t i = it->_index;
-        it->_index++;
-        if (table->entries[i].key != NULL) {
-            // Found next non-empty item, update iterator key and value.
-            ht_entry entry = table->entries[i];
-            it->key = entry.key;
-            it->value = entry.value;
-            return true;
-        }
+static bool
+__next_bucket(hti *it) {
+    it->_index = 0;
+    if (it->_bucket_idx >= N) {
+        return false;
+    } else {
+        it->_bucket = &it->_table->buckets[it->_bucket_idx++];
+        return true;
     }
-    return false;
+}
+
+bool
+ht_next(hti *it) {
+    size_t bucket_len = it->_table->_buckets_length;
+    // better than recursion?
+    while (1) {
+        ht_bucket *bucket = it->_bucket;
+	ht_entry *entry = &bucket->entries[it->_index];
+        if (entry->key == NULL) {
+            if (!__next_bucket(it))
+                return false;
+            continue;
+        }
+
+        it->current = entry;
+        it->_index++;
+        if (it->_index >= bucket_len) {
+            if (!__next_bucket(it))
+                return false;
+            continue;
+        }
+        return true;
+    }
 }
