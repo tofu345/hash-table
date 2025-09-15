@@ -157,7 +157,7 @@ ht_set_entry(ht *table, const char *key, void *value, bool copy_key) {
     return key;
 }
 
-// create new bucket list with double number of current buckets and 
+// create new bucket list with double number of current buckets and
 // NOTE: immediately move all elements to new bucket list.
 // Returns false if no memory or could not move all elements.
 static bool
@@ -221,16 +221,14 @@ void
 ht_print(ht *table) {
     for (size_t i = 0; i < table->_buckets_length; i++) {
 	printf("bucket %zu\n", i);
-	ht_bucket *bucket = table->buckets + i;
+	ht_bucket *bucket = &table->buckets[i];
 	while (bucket != NULL) {
-	    ht_entry *p = &bucket->entries[0];
-	    for (; p->key; p++) {
-		printf("> %s\n", p->key);
+	    for (int i = 0; i < N; i++) {
+		ht_entry *entry = &bucket->entries[i];
+		if (entry->key == NULL) break;
+		printf("> %s\n", entry->key);
 	    }
-	    if (bucket->overflow) {
-		bucket = bucket->overflow;
-		puts("-");
-	    }
+	    bucket = bucket->overflow;
 	}
 	puts("");
     }
