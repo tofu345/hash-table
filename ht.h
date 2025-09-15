@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #define N 8
 
@@ -13,13 +14,13 @@ typedef struct {
 
 // https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics
 typedef struct ht_bucket {
-    size_t hashes[N]; // NULL-terminated
+    size_t hashes[N]; // NULL-terminated, for faster comparisons.
     ht_entry entries[N];
     struct ht_bucket *overflow;
 } ht_bucket;
 
 // returns index of bucket to store key in
-typedef size_t hash_fn(const char *key);
+typedef uint64_t hash_fn(const char *key);
 
 typedef struct {
     size_t length; // number of filled entries

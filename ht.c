@@ -9,7 +9,7 @@
 #define FNV_OFFSET 14695981039346656037UL
 #define FNV_PRIME 1099511628211UL
 
-size_t hash_fnv1a(const char *key) {
+uint64_t hash_fnv1a(const char *key) {
     uint64_t hash = FNV_OFFSET;
     for (const char *p = key; *p; p++) {
 	hash ^= (uint64_t)(unsigned char)(*p);
@@ -18,9 +18,9 @@ size_t hash_fnv1a(const char *key) {
     return hash;
 }
 
-static inline size_t
-hash_index(size_t hash, size_t num_buckets) {
-    return (size_t)(hash & (uint64_t)(num_buckets - 1));
+static inline uint64_t
+hash_index(uint64_t hash, size_t num_buckets) {
+    return (hash & (uint64_t)(num_buckets - 1));
 }
 
 ht *
@@ -56,7 +56,7 @@ ht_destroy(ht *table) {
 
 // return [value] of [key] in [bucket] or its [overflows].
 static void *
-bucket_get_value(ht_bucket *bucket, size_t hash) {
+bucket_get_value(ht_bucket *bucket, uint64_t hash) {
     while (bucket != NULL) {
 	for (size_t i = 0; i < N; i++) {
 	    if (bucket->entries[i].key == NULL) return NULL;
@@ -69,7 +69,7 @@ bucket_get_value(ht_bucket *bucket, size_t hash) {
 }
 
 static void *
-bucket_set(ht *table, ht_bucket *bucket, const char *key, size_t hash,
+bucket_set(ht *table, ht_bucket *bucket, const char *key, uint64_t hash,
 	void *value) {
     for (size_t i = 0; i < N; i++) {
 	if (bucket->entries[i].key == NULL) {
@@ -92,6 +92,7 @@ bucket_set(ht *table, ht_bucket *bucket, const char *key, size_t hash,
 	if (new_bucket == NULL) return NULL;
 	new_bucket->entries[0].key = key;
 	new_bucket->entries[0].value = value;
+	new_bucket->hashes[0] = hash;
 	table->length++;
 	bucket->overflow = new_bucket;
 	return (void*)key;
@@ -101,7 +102,7 @@ bucket_set(ht *table, ht_bucket *bucket, const char *key, size_t hash,
 void *
 ht_get(ht *table, const char *key) {
     if (key == NULL) return NULL;
-    size_t hash = hash_fnv1a(key);
+    uint64_t hash = hash_fnv1a(key);
     size_t index = hash_index(hash, table->_buckets_length);
     return bucket_get_value(table->buckets + index, hash);
 }
@@ -121,12 +122,13 @@ ht_expand(ht *table) {
 
     // TODO: expand on a per bucket basis? not all at once?
 
-    size_t index, hash;
+    size_t index;
+    uint64_t hash;
     void *err;
 
     hti it = ht_iterator(table);
     while (ht_next(&it)) {
-	hash = it._bucket->hashes[it._index - 1];
+	hash = it._bucket->hashes[it._index - 1]; // see [ht_next]
 	index = hash_index(hash, new_length);
 	err = bucket_set(table, new_buckets + index,
 		it.current->key, hash, it.current->value);
@@ -157,7 +159,7 @@ ht_set(ht *table, const char *key, void *value) {
 	}
     }
 
-    size_t hash = hash_fnv1a(key);
+    uint64_t hash = hash_fnv1a(key);
     size_t index = hash_index(hash, table->_buckets_length);
     void *err = bucket_set(table, table->buckets + index, key, hash, value);
     if (err == NULL) return NULL;
@@ -178,7 +180,7 @@ bucket_last(ht_bucket *bucket) {
 void *
 ht_remove(ht *table, const char *key) {
     if (key == NULL) return NULL;
-    size_t hash = hash_fnv1a(key);
+    uint64_t hash = hash_fnv1a(key);
     size_t index = hash_index(hash, table->_buckets_length);
     ht_bucket *bucket = table->buckets + index;
 
