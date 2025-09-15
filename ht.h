@@ -7,26 +7,26 @@
 
 // [key] NULL if empty
 typedef struct {
-    const char *key;
-    void *value;
+	const char *key;
+	void *value;
 } ht_entry;
 
 // https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics
 typedef struct ht_bucket {
-    ht_entry entries[N]; // NULL-terminated
-    struct ht_bucket *overflow;
+	ht_entry entries[N]; // NULL-terminated
+	struct ht_bucket *overflow;
 } ht_bucket;
 
 // returns index of bucket to store key in
 typedef size_t hash_fn(const char *key, size_t num_buckets);
 
 typedef struct {
-    size_t length; // number of filled entries
+	size_t length; // number of filled entries
 
-    ht_bucket *buckets;
-    size_t _buckets_length;
+	ht_bucket *buckets;
+	size_t _buckets_length;
 
-    hash_fn *_hash;
+	hash_fn *_hash;
 } ht;
 
 // from: https://benhoyt.com/writings/hash-table-in-c/
@@ -62,13 +62,13 @@ void *ht_remove(ht *table, const char *key);
 void ht_print(ht *table);
 
 typedef struct {
-    ht_entry *current;
+	ht_entry *current;
 
-    // Don't use these fields directly.
-    ht *_table;
-    ht_bucket *_bucket;
-    size_t _bucket_idx; // index into `_table.buckets`
-    size_t _index;      // current index into `_bucket.entries`
+	// Don't use these fields directly.
+	ht *_table;
+	ht_bucket *_bucket;
+	size_t _bucket_idx; // index into `_table.buckets`
+	size_t _index;      // current index into `_bucket.entries`
 } hti;
 
 // Return new hash table iterator (for use with ht_next).
