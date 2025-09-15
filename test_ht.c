@@ -1,4 +1,5 @@
 #include "unity/unity.h"
+
 #include "ht.h"
 
 #include <assert.h>
@@ -79,7 +80,7 @@ test_ht_remove(void) {
 static int
 __str_array_idx(char* arr[], int len, const char* val) {
     for (int i = 0; i < len; i++) {
-        if (!strcmp(arr[i], val)) return i;
+	if (!strcmp(arr[i], val)) return i;
     }
     return -1;
 }
@@ -92,23 +93,23 @@ test_ht_iterator(void) {
     char *data[] = { "foo", "bar", "baz", "jane" };
     int data_len = sizeof(data) / sizeof(data[0]);
     for (int i = 0; i < data_len; i++) {
-        ht_set(tbl, data[i], data[i]);
+	ht_set(tbl, data[i], data[i]);
     }
 
     bool is_found[data_len] = {};
     hti it = ht_iterator(tbl);
     while (ht_next(&it)) {
-        int idx = __str_array_idx(data, data_len, it.current->key);
-        if (idx == -1) continue;
-        is_found[idx] = true;
+	int idx = __str_array_idx(data, data_len, it.current->key);
+	if (idx == -1) continue;
+	is_found[idx] = true;
     }
 
     bool all_found = true;
     for (int i = 0; i < data_len; i++) {
-        if (!is_found[i]) {
-            all_found = false;
-            printf("could not find %s\n", data[i]);
-        }
+	if (!is_found[i]) {
+	    all_found = false;
+	    printf("could not find %s\n", data[i]);
+	}
     }
     TEST_ASSERT(all_found);
 }

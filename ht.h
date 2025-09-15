@@ -17,6 +17,7 @@ typedef struct ht_bucket {
     struct ht_bucket *overflow;
 } ht_bucket;
 
+// returns index of bucket to store key in
 typedef size_t hash_fn(const char *key, size_t num_buckets);
 
 typedef struct {
@@ -43,12 +44,12 @@ ht *ht_create_with(hash_fn* hash);
 // Free memory allocated for hash table and copied keys, NOTE: not values.
 void ht_destroy(ht *table);
 
-// Get item with given key from hash table. Return value (which was set with
-// ht_set), or NULL if key not found.
+// Get item with given key from hash table.
+// Return value, or NULL if key not found.
 void *ht_get(ht *table, const char *key);
 
 // Set item with given key (which must not be NULL) to value. If not already
-// present in table, the key is copied and owned by [table].
+// present in table, the key is copied and freed with [ht_destroy].
 //
 // Returns address of [key] on success.
 // Returns NULL if [key] is NULL or out of memory.
