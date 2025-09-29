@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// Number of elements in a bucket and initial number of buckets.
 #define N 8
 
 // [key] NULL if empty
@@ -12,9 +13,9 @@ typedef struct {
     void *value;
 } ht_entry;
 
-// https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics
+// according to: https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics
 typedef struct ht_bucket {
-    size_t hashes[N]; // NULL-terminated, for faster comparisons.
+    size_t hashes[N]; // for faster comparisons.
     ht_entry entries[N];
     struct ht_bucket *overflow;
 } ht_bucket;
@@ -45,8 +46,10 @@ void ht_destroy(ht *table);
 // Return value, or NULL if key not found.
 void *ht_get(ht *table, const char *key);
 
-// Set item with given key (which must not be NULL) to value. If not already
-// present in table.
+// Set item with given key (which must not be NULL) to value (which also must
+// not be NULL, see [ht_get]). If not already present in table.
+//
+// NOTE: the key is not copied.
 //
 // Returns address of [key] on success.
 // Returns NULL if [key] is NULL or out of memory.
