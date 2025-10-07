@@ -1,6 +1,5 @@
 #include "ht.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -78,11 +77,12 @@ bucket_set(ht *table, ht_bucket *bucket, const char *key, uint64_t hash,
             bucket->entries[i].value = value;
             bucket->hashes[i] = hash;
             table->length++;
-            return (void *)key;
+            return value;
 
         } else if (bucket->hashes[i] == hash) {
+            void *old_val = bucket->entries[i].value;
             bucket->entries[i].value = value;
-            return (void *)key;
+            return old_val;
         }
     }
 
@@ -96,7 +96,7 @@ bucket_set(ht *table, ht_bucket *bucket, const char *key, uint64_t hash,
         new_bucket->hashes[0] = hash;
         table->length++;
         bucket->overflow = new_bucket;
-        return (void *)key;
+        return value;
     }
 }
 
@@ -118,7 +118,10 @@ ht_expand(ht *table) {
 
     ht_bucket *old_buckets = table->buckets,
               *new_buckets = calloc(new_length, sizeof(ht_bucket));
-    if (new_buckets == NULL) return false;
+    if (new_buckets == NULL) {
+        table->buckets = old_buckets;
+        return false;
+    }
 
     // [bucket_set] auto increments
     int num_elements = table->length;
@@ -157,7 +160,7 @@ void *
 ht_set(ht *table, const char *key, void *value) {
     if (key == NULL || value == NULL) return NULL;
 
-    // NOTE: Does not take into account possible bucket overflows.
+    // NOTE: This calculation does not take into account bucket overflows.
     size_t half_full = table->length >= (table->_buckets_length * N) / 2;
     if (half_full) {
         if (!ht_expand(table)) {
@@ -168,17 +171,6 @@ ht_set(ht *table, const char *key, void *value) {
     uint64_t hash = hash_fnv1a(key);
     size_t index = hash_index(hash, table->_buckets_length);
     return bucket_set(table, table->buckets + index, key, hash, value);
-}
-
-// returns index of last not-null key in [bucket]
-static int
-bucket_last_index(ht_bucket *bucket) {
-    for (int i = 0; i < N - 1; i++) {
-        if (bucket->hashes[i]) {
-            return i + 1;
-        }
-    }
-    return N - 1;
 }
 
 void *
@@ -193,12 +185,20 @@ ht_remove(ht *table, const char *key) {
         for (int i = 0; i < N; i++) {
             if (bucket->entries[i].key == NULL) break;
             if (bucket->hashes[i] == hash) {
-                int last = bucket_last_index(bucket);
+                // find last not NULL key
+                int last = i + 1;
+                for (; last < N - 1; last++) {
+                    if (!bucket->entries[last + 1].key) {
+                        break;
+                    }
+                }
+
+                void *val = bucket->entries[i].value;
                 bucket->entries[i] = bucket->entries[last];
                 bucket->entries[last].key = NULL;
                 bucket->hashes[i] = bucket->hashes[last];
                 table->length--;
-                return (void *)key;
+                return val;
             }
         }
         bucket = bucket->overflow;
@@ -227,8 +227,9 @@ ht_print(ht *table) {
 hti
 ht_iterator(ht *table) {
     hti it;
-    it._table = table;
-    it._bucket = &table->buckets[0];
+    it._buckets_length = table->_buckets_length;
+    it._buckets = table->buckets;
+    it._bucket = table->buckets;
     it._bucket_idx = 1;
     it._index = 0;
     return it;
@@ -237,10 +238,10 @@ ht_iterator(ht *table) {
 static bool
 __next_bucket(hti *it) {
     it->_index = 0;
-    if (it->_bucket_idx >= N) {
+    if (it->_bucket_idx >= it->_buckets_length) {
         return false;
     } else {
-        it->_bucket = &it->_table->buckets[it->_bucket_idx++];
+        it->_bucket = &it->_buckets[it->_bucket_idx++];
         return true;
     }
 }

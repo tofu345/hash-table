@@ -2,7 +2,6 @@
 
 #include "ht.h"
 
-#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -46,26 +45,32 @@ test_ht_remove(void) {
     ht* tbl = ht_create();
     if (tbl == NULL) exit_nomem();
 
-    ht_set(tbl, "foo", "bar");
+    ht_set(tbl, "foo", "foo");
+    ht_set(tbl, "x", "x"); // collides with "foo" with FNV-1a
+    ht_set(tbl, "bar", "bar");
+    TEST_ASSERT_EQUAL_INT(3, tbl->length);
+
+    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "foo"));
+    TEST_ASSERT_EQUAL_INT(2, tbl->length);
+    TEST_ASSERT_NULL(ht_remove(tbl, "foo"));
+    TEST_ASSERT_EQUAL_INT(2, tbl->length);
+
+    TEST_ASSERT_EQUAL_STRING("x", ht_get(tbl, "x"));
+
+    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "bar"));
+    TEST_ASSERT_EQUAL_INT(1, tbl->length);
+    TEST_ASSERT_NULL(ht_remove(tbl, "bar"));
+    TEST_ASSERT_EQUAL_INT(1, tbl->length);
+
     ht_set(tbl, "bar", "foo");
     TEST_ASSERT_EQUAL_INT(2, tbl->length);
 
-    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "foo"));
-    TEST_ASSERT_EQUAL_INT(1, tbl->length);
-    TEST_ASSERT_NULL(ht_remove(tbl, "foo"));
-    TEST_ASSERT_EQUAL_INT(1, tbl->length);
-
     TEST_ASSERT_NOT_NULL(ht_remove(tbl, "bar"));
-    TEST_ASSERT_EQUAL_INT(0, tbl->length);
+    TEST_ASSERT_EQUAL_INT(1, tbl->length);
     TEST_ASSERT_NULL(ht_remove(tbl, "bar"));
-    TEST_ASSERT_EQUAL_INT(0, tbl->length);
-
-    ht_set(tbl, "bar", "foo");
     TEST_ASSERT_EQUAL_INT(1, tbl->length);
 
-    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "bar"));
-    TEST_ASSERT_EQUAL_INT(0, tbl->length);
-    TEST_ASSERT_NULL(ht_remove(tbl, "bar"));
+    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "x"));
     TEST_ASSERT_EQUAL_INT(0, tbl->length);
 
     ht_destroy(tbl);

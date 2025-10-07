@@ -15,7 +15,7 @@ typedef struct {
 
 // according to: https://dave.cheney.net/2018/05/29/how-the-go-runtime-implements-maps-efficiently-without-generics
 typedef struct ht_bucket {
-    size_t hashes[N]; // for faster comparisons.
+    uint64_t hashes[N]; // for faster comparisons.
     ht_entry entries[N];
     struct ht_bucket *overflow;
 } ht_bucket;
@@ -42,21 +42,19 @@ ht *ht_create(void);
 // Free hash table
 void ht_destroy(ht *table);
 
-// Get item with given key from hash table.
+// Get item with [key].
 // Return value, or NULL if key not found.
 void *ht_get(ht *table, const char *key);
 
-// Set item with given key (which must not be NULL) to value (which also must
-// not be NULL, see [ht_get]). If not already present in table.
-//
 // NOTE: the key is not copied.
 //
-// Returns address of [key] on success.
-// Returns NULL if [key] is NULL or out of memory.
+// Returns NULL:
+// (1) if [key] or [value] is NULL.
+// (2) out of memory.
+// Otherwise, returns address of [value] or previous value of [key] if present.
 void *ht_set(ht *table, const char *key, void *value);
 
-// Remove item with given key and if exists return pointer to its value or NULL
-// if not found.
+// Remove item with [key] and return its value or NULL if not found.
 void *ht_remove(ht *table, const char *key);
 
 void ht_print(ht *table);
@@ -65,10 +63,11 @@ typedef struct {
     ht_entry *current;
 
     // Don't use these fields directly.
-    ht *_table;
-    ht_bucket *_bucket;
-    size_t _bucket_idx; // index into `_table.buckets`
-    size_t _index;      // current index into `_bucket.entries`
+    ht_bucket *_buckets;
+    size_t _buckets_length;
+    ht_bucket *_bucket; // current bucket under inspection
+    size_t _bucket_idx; // index of current bucket into `_buckets`
+    size_t _index;      // index of current entry into `_bucket.entries`
 } hti;
 
 // Return new hash table iterator (for use with ht_next).
