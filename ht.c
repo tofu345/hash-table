@@ -108,6 +108,12 @@ ht_get(ht *table, const char *key) {
     return bucket_get_value(table->buckets + index, hash);
 }
 
+void *
+ht_get_hash(ht *table, uint64_t hash) {
+    size_t index = hash_index(hash, table->_buckets_length);
+    return bucket_get_value(table->buckets + index, hash);
+}
+
 // create new bucket list with double number of current buckets and
 // NOTE: immediately move all elements to new buckets.
 // Returns false if no memory or could not move.

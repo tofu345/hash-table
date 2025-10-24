@@ -34,7 +34,7 @@ typedef struct {
 // hash with FNV-1a algorithm. NOTE: its not secure, but it works.
 //
 // Returns 64-bit FNV-1a hash for key (NUL-terminated).
-size_t hash_fnv1a(const char *key);
+uint64_t hash_fnv1a(const char *key);
 
 // hash table with fnv1a hash function. returns NULL on err
 ht *ht_create(void);
@@ -45,6 +45,7 @@ void ht_destroy(ht *table);
 // Get item with [key].
 // Return value, or NULL if key not found.
 void *ht_get(ht *table, const char *key);
+void *ht_get_hash(ht *table, uint64_t hash);
 
 // NOTE: the key is not copied.
 //
