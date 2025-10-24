@@ -95,7 +95,9 @@ test_ht_iterator(void) {
         ht_set(tbl, data[i], data[i]);
     }
 
-    bool is_found[data_len] = {};
+    bool is_found[data_len];
+    memset(is_found, 0, data_len);
+
     hti it = ht_iterator(tbl);
     while (ht_next(&it)) {
         int idx = __str_array_idx(data, data_len, it.current->key);
