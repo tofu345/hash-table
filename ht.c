@@ -163,7 +163,7 @@ ht_expand(ht *table) {
 }
 
 void *
-ht_set(ht *table, const char *key, void *value) {
+ht_set_hash(ht *table, const char *key, void *value, uint64_t hash) {
     if (key == NULL || value == NULL) return NULL;
 
     // NOTE: This calculation does not take into account bucket overflows.
@@ -174,15 +174,21 @@ ht_set(ht *table, const char *key, void *value) {
         }
     }
 
-    uint64_t hash = hash_fnv1a(key);
     size_t index = hash_index(hash, table->_buckets_length);
     return bucket_set(table, table->buckets + index, key, hash, value);
 }
 
 void *
-ht_remove(ht *table, const char *key) {
-    if (key == NULL) return NULL;
+ht_set(ht *table, const char *key, void *value) {
+    if (key == NULL || value == NULL) return NULL;
+
     uint64_t hash = hash_fnv1a(key);
+    return ht_set_hash(table, key, value, hash);
+}
+
+void *
+ht_remove_hash(ht *table, const char *key, uint64_t hash) {
+    if (key == NULL) return NULL;
     size_t index = hash_index(hash, table->_buckets_length);
     ht_bucket *bucket = table->buckets + index;
 
@@ -211,6 +217,13 @@ ht_remove(ht *table, const char *key) {
     }
 
     return NULL;
+}
+
+void *
+ht_remove(ht *table, const char *key) {
+    if (key == NULL) return NULL;
+    uint64_t hash = hash_fnv1a(key);
+    return ht_remove_hash(table, key, hash);
 }
 
 void

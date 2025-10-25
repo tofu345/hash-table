@@ -54,9 +54,11 @@ void *ht_get_hash(ht *table, uint64_t hash);
 // (2) out of memory.
 // Otherwise, returns address of [value] or previous value of [key] if present.
 void *ht_set(ht *table, const char *key, void *value);
+void *ht_set_hash(ht *table, const char *key, void *value, uint64_t hash);
 
 // Remove item with [key] and return its value or NULL if not found.
 void *ht_remove(ht *table, const char *key);
+void *ht_remove_hash(ht *table, const char *key, uint64_t hash);
 
 void ht_print(ht *table);
 
