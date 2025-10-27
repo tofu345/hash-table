@@ -248,7 +248,7 @@ ht_iterator(ht *table) {
     hti it;
     it._tbl = table;
     it._bucket = table->buckets;
-    it._bucket_idx = 0;
+    it._bucket_idx = 1;
     it._index = 0;
     return it;
 }
@@ -267,7 +267,7 @@ __next_bucket(hti *it) {
 bool
 ht_next(hti *it) {
     while (1) {
-        if (it->_index > N) {
+        if (it->_index >= N) {
             if (it->_bucket->overflow) {
                 it->_bucket = it->_bucket->overflow;
                 it->_index = 0;
