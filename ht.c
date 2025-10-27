@@ -246,10 +246,9 @@ ht_print(ht *table) {
 hti
 ht_iterator(ht *table) {
     hti it;
-    it._buckets_length = table->_buckets_length;
-    it._buckets = table->buckets;
+    it._tbl = table;
     it._bucket = table->buckets;
-    it._bucket_idx = 1;
+    it._bucket_idx = 0;
     it._index = 0;
     return it;
 }
@@ -257,10 +256,10 @@ ht_iterator(ht *table) {
 static bool
 __next_bucket(hti *it) {
     it->_index = 0;
-    if (it->_bucket_idx >= it->_buckets_length) {
+    if (it->_bucket_idx >= it->_tbl->_buckets_length) {
         return false;
     } else {
-        it->_bucket = &it->_buckets[it->_bucket_idx++];
+        it->_bucket = &it->_tbl->buckets[it->_bucket_idx++];
         return true;
     }
 }
@@ -269,8 +268,13 @@ bool
 ht_next(hti *it) {
     while (1) {
         if (it->_index > N) {
-            if (!__next_bucket(it))
+            if (it->_bucket->overflow) {
+                it->_bucket = it->_bucket->overflow;
+                it->_index = 0;
+
+            } else if (!__next_bucket(it)) {
                 return false;
+            }
             continue;
         }
 

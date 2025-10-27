@@ -66,8 +66,7 @@ typedef struct {
     ht_entry *current;
 
     // Don't use these fields directly.
-    ht_bucket *_buckets;
-    size_t _buckets_length;
+    ht *_tbl;
     ht_bucket *_bucket; // current bucket under inspection
     size_t _bucket_idx; // index of current bucket into `_buckets`
     size_t _index;      // index of current entry into `_bucket.entries`

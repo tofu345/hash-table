@@ -130,11 +130,32 @@ test_ht_expand(void) {
     };
     const int data_len = sizeof(data) / sizeof(data[0]);
 
-    for (int i = 0; i < data_len; i++) {
-        TEST_ASSERT_NOT_NULL(ht_set(tbl, data[i], "x"));
+    size_t n;
+    for (size_t i = 0; i < data_len; i++) {
+        n = i + 1; // cannot be 0
+        TEST_ASSERT_EQUAL_INT(n, ht_set(tbl, data[i], (void *)n));
     }
 
     TEST_ASSERT_EQUAL_INT_MESSAGE(data_len, tbl->length, "wrong num_elements");
+
+    bool is_found[data_len];
+    memset(is_found, 0, data_len);
+
+    hti it = ht_iterator(tbl);
+    size_t idx;
+    while (ht_next(&it)) {
+        idx = (size_t) it.current->value;
+        is_found[idx - 1] = true;
+    }
+
+    bool all_found = true;
+    for (int i = 0; i < data_len; i++) {
+        if (!is_found[i]) {
+            all_found = false;
+            printf("could not find %s\n", data[i]);
+        }
+    }
+    TEST_ASSERT(all_found);
 
     ht_destroy(tbl);
 }
