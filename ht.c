@@ -253,6 +253,7 @@ ht_iterator(ht *table) {
     return it;
 }
 
+// move [it._bucket] to next bucket if exists and return true.
 static bool
 __next_bucket(hti *it) {
     it->_index = 0;

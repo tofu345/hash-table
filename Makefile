@@ -1,4 +1,4 @@
-CFLAGS = -O3 -g -Wall -Werror -Wextra -pedantic-errors
+CFLAGS = -g -Wall -Werror -Wextra -pedantic-errors
 
 main: .FORCE
 	@ gcc ${CFLAGS} -o test_ht \

@@ -6,19 +6,24 @@
 #include <stdio.h>
 #include <string.h>
 
-void setUp(void) {}
-
-void tearDown(void) {}
+ht *tbl;
 
 void exit_nomem(void) {
-    fprintf(stderr, "out of memory\n");
+}
+
+void setUp(void) {
+    tbl = ht_create();
+    if (tbl == NULL) {
+        fprintf(stderr, "out of memory\n");
+    }
+}
+
+void tearDown(void) {
+    ht_destroy(tbl);
 }
 
 static void
 test_ht_set_get(void) {
-    ht* tbl = ht_create();
-    if (tbl == NULL) exit_nomem();
-
     TEST_ASSERT_NOT_NULL(ht_set(tbl, "foo", "bar"));
     TEST_ASSERT_NOT_NULL(ht_set(tbl, "bar", "foo"));
     TEST_ASSERT_NOT_NULL(ht_set(tbl, "bazz", "bazz"));
@@ -36,15 +41,10 @@ test_ht_set_get(void) {
     TEST_ASSERT_EQUAL_STRING("jane", ht_get(tbl, "jane"));
     TEST_ASSERT_EQUAL_STRING("x", ht_get(tbl, "x"));
     TEST_ASSERT_EQUAL_INT_MESSAGE(7, tbl->length, "wrong num_elements");
-
-    ht_destroy(tbl);
 }
 
 static void
 test_ht_remove(void) {
-    ht* tbl = ht_create();
-    if (tbl == NULL) exit_nomem();
-
     ht_set(tbl, "foo", "foo");
     ht_set(tbl, "x", "x"); // collides with "foo" with FNV-1a
     ht_set(tbl, "bar", "bar");
@@ -72,8 +72,6 @@ test_ht_remove(void) {
 
     TEST_ASSERT_NOT_NULL(ht_remove(tbl, "x"));
     TEST_ASSERT_EQUAL_INT(0, tbl->length);
-
-    ht_destroy(tbl);
 }
 
 static int
@@ -86,9 +84,6 @@ __str_array_idx(char* arr[], int len, const char* val) {
 
 static void
 test_ht_iterator(void) {
-    ht* tbl = ht_create();
-    if (tbl == NULL) exit_nomem();
-
     char *data[] = { "foo", "bar", "baz", "jane" };
     int data_len = sizeof(data) / sizeof(data[0]);
     for (int i = 0; i < data_len; i++) {
@@ -113,15 +108,10 @@ test_ht_iterator(void) {
         }
     }
     TEST_ASSERT(all_found);
-
-    ht_destroy(tbl);
 }
 
 static void
 test_ht_expand(void) {
-    ht* tbl = ht_create();
-    if (tbl == NULL) exit_nomem();
-
     // eh.
     const char *data[] = {
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
@@ -131,7 +121,7 @@ test_ht_expand(void) {
     const int data_len = sizeof(data) / sizeof(data[0]);
 
     size_t n;
-    for (size_t i = 0; i < data_len; i++) {
+    for (int i = 0; i < data_len; i++) {
         n = i + 1; // cannot be 0
         TEST_ASSERT_EQUAL_INT(n, ht_set(tbl, data[i], (void *)n));
     }
@@ -156,8 +146,6 @@ test_ht_expand(void) {
         }
     }
     TEST_ASSERT(all_found);
-
-    ht_destroy(tbl);
 }
 
 int main(void) {
