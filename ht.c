@@ -10,7 +10,17 @@
 
 uint64_t hash_fnv1a(const char *key) {
     uint64_t hash = FNV_OFFSET;
-    for (const char *p = key; *p; p++) {
+    for (const char *p = key; *p; ++p) {
+        hash ^= (uint64_t)(unsigned char)(*p);
+        hash *= FNV_PRIME;
+    }
+    return hash;
+}
+
+uint64_t hash_fnv1a_(const char *key, int len) {
+    uint64_t hash = FNV_OFFSET;
+    int i = 0;
+    for (const char *p = key; *p && i < len; ++p, ++i) {
         hash ^= (uint64_t)(unsigned char)(*p);
         hash *= FNV_PRIME;
     }

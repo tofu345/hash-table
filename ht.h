@@ -35,6 +35,7 @@ typedef struct {
 //
 // Returns 64-bit FNV-1a hash for key (NUL-terminated).
 uint64_t hash_fnv1a(const char *key);
+uint64_t hash_fnv1a_(const char *key, int len);
 
 // hash table with fnv1a hash function. returns NULL on err
 ht *ht_create(void);
