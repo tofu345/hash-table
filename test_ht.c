@@ -2,19 +2,40 @@
 
 #include "ht.h"
 
+#include <errno.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
-ht *tbl;
-
-void exit_nomem(void) {
+// print hash-table
+__attribute__ ((unused))
+static void ht_print(ht *table) {
+    for (size_t i = 0; i < table->_buckets_length; i++) {
+        printf("bucket %zu\n", i);
+        ht_bucket *bucket = &table->buckets[i];
+        while (bucket != NULL) {
+            for (int i = 0; i < N; i++) {
+                ht_entry *entry = &bucket->entries[i];
+                if (!bucket->filled[i]) {
+                    break;
+                }
+                printf("> %ld\n", (long) entry->key);
+            }
+            bucket = bucket->overflow;
+        }
+        puts("");
+    }
 }
+
+
+ht *tbl;
 
 void setUp(void) {
     tbl = ht_create();
     if (tbl == NULL) {
         fprintf(stderr, "out of memory\n");
+        TEST_IGNORE();
     }
 }
 
@@ -22,64 +43,113 @@ void tearDown(void) {
     ht_destroy(tbl);
 }
 
+void *res;
+
+// check if ht_set(key, val) == val
+#define ASSERT_SET(key, val) \
+    res = ht_set(tbl, key, val); \
+    TEST_ASSERT(errno != ENOMEM); \
+    TEST_ASSERT_EQUAL_STRING(res, val);
+
+// check if ht_set_hash(key, val, hash) == val
+#define ASSERT_SET_HASH(key, val, hash) \
+    res = ht_set_hash(tbl, key, val, hash); \
+    TEST_ASSERT_EQUAL_PTR(res, val); \
+    TEST_ASSERT(errno != ENOMEM);
+
+// check if ht_get_hash(key, val) == val
+#define ASSERT_GET(key, val) \
+    res = ht_get(tbl, key); \
+    TEST_ASSERT_EQUAL_STRING(res, val); \
+    TEST_ASSERT(errno != ENOKEY);
+
+// check if ht_get_hash(hash, val) == val
+#define ASSERT_GET_HASH(hash, val) \
+    res = ht_get_hash(tbl, hash); \
+    TEST_ASSERT_EQUAL_PTR(res, val); \
+    TEST_ASSERT(errno != ENOKEY);
+
 static void
 test_ht_set_get(void) {
-    TEST_ASSERT_NOT_NULL(ht_set(tbl, "foo", "bar"));
-    TEST_ASSERT_NOT_NULL(ht_set(tbl, "bar", "foo"));
-    TEST_ASSERT_NOT_NULL(ht_set(tbl, "bazz", "bazz"));
-    TEST_ASSERT_NOT_NULL(ht_set(tbl, "bob", "bob"));
-    TEST_ASSERT_NOT_NULL(ht_set(tbl, "buzz", "buzz"));
-    TEST_ASSERT_NOT_NULL(ht_set(tbl, "jane", "jane"));
-    TEST_ASSERT_NOT_NULL(ht_set(tbl, "x", "x"));
-    TEST_ASSERT_EQUAL_INT_MESSAGE(7, tbl->length, "wrong num_elements");
+    ASSERT_SET("foo", "bar");
+    ASSERT_SET("bar", "foo");
+    ASSERT_SET("bazz", "bazz");
+    ASSERT_SET("bob", "bob");
+    ASSERT_SET("buzz", "buzz");
+    ASSERT_SET("jane", "jane");
+    ASSERT_SET("x", "x");
 
-    TEST_ASSERT_EQUAL_STRING("bar", ht_get(tbl, "foo"));
-    TEST_ASSERT_EQUAL_STRING("foo", ht_get(tbl, "bar"));
-    TEST_ASSERT_EQUAL_STRING("bazz", ht_get(tbl, "bazz"));
-    TEST_ASSERT_EQUAL_STRING("bob", ht_get(tbl, "bob"));
-    TEST_ASSERT_EQUAL_STRING("buzz", ht_get(tbl, "buzz"));
-    TEST_ASSERT_EQUAL_STRING("jane", ht_get(tbl, "jane"));
-    TEST_ASSERT_EQUAL_STRING("x", ht_get(tbl, "x"));
-    TEST_ASSERT_EQUAL_INT_MESSAGE(7, tbl->length, "wrong num_elements");
+    size_t i, num = 7;
+    for (i = 0; i < num; ++i) {
+        ASSERT_SET_HASH((void *) i, (void *) i, i);
+    }
+
+    int expected_len = 7 + num;
+    TEST_ASSERT_EQUAL_INT(expected_len, tbl->length);
+
+    ASSERT_GET("foo", "bar");
+    ASSERT_GET("bar", "foo");
+    ASSERT_GET("bazz", "bazz");
+    ASSERT_GET("bob", "bob");
+    ASSERT_GET("buzz", "buzz");
+    ASSERT_GET("jane", "jane");
+    ASSERT_GET("x", "x");
+
+    for (i = 0; i < 5; ++i) {
+        ASSERT_GET_HASH(i, i);
+    }
+
+    TEST_ASSERT_EQUAL_INT(expected_len, tbl->length);
 }
 
 static void
 test_ht_remove(void) {
-    ht_set(tbl, "foo", "foo");
-    ht_set(tbl, "x", "x"); // collides with "foo" with FNV-1a
-    ht_set(tbl, "bar", "bar");
+    ASSERT_SET("foo", "foo");
+    ASSERT_SET("x", "x");   // collides with "foo" with FNV-a, will be in same bucket.
+    ASSERT_SET("bar", "bar");
     TEST_ASSERT_EQUAL_INT(3, tbl->length);
 
-    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "foo"));
+    res = ht_remove(tbl, "foo");
+    TEST_ASSERT(errno != ENOKEY && strcmp(res, "foo") == 0);
     TEST_ASSERT_EQUAL_INT(2, tbl->length);
-    TEST_ASSERT_NULL(ht_remove(tbl, "foo"));
+
+    ht_remove(tbl, "foo");
+    TEST_ASSERT(errno == ENOKEY);
     TEST_ASSERT_EQUAL_INT(2, tbl->length);
+
+    ht_get(tbl, "foo");
+    TEST_ASSERT(errno == ENOKEY);
+    TEST_ASSERT_EQUAL_INT(2, tbl->length);
+
+    TEST_ASSERT_EQUAL_STRING("bar", ht_get(tbl, "bar"));
+    TEST_ASSERT_EQUAL_STRING("x", ht_get(tbl, "x"));
+
+    res = ht_remove(tbl, "bar");
+    TEST_ASSERT(errno != ENOKEY && strcmp(res, "bar") == 0);
+    TEST_ASSERT_EQUAL_INT(1, tbl->length);
+
+    ht_remove(tbl, "bar");
+    TEST_ASSERT(errno == ENOKEY);
+    TEST_ASSERT_EQUAL_INT(1, tbl->length);
 
     TEST_ASSERT_EQUAL_STRING("x", ht_get(tbl, "x"));
 
-    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "bar"));
-    TEST_ASSERT_EQUAL_INT(1, tbl->length);
-    TEST_ASSERT_NULL(ht_remove(tbl, "bar"));
-    TEST_ASSERT_EQUAL_INT(1, tbl->length);
-
-    ht_set(tbl, "bar", "foo");
+    ASSERT_SET("bar", "foo");
     TEST_ASSERT_EQUAL_INT(2, tbl->length);
 
-    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "bar"));
-    TEST_ASSERT_EQUAL_INT(1, tbl->length);
-    TEST_ASSERT_NULL(ht_remove(tbl, "bar"));
+    res = ht_remove(tbl, "bar");
+    TEST_ASSERT(errno != ENOKEY && strcmp(res, "foo") == 0);
     TEST_ASSERT_EQUAL_INT(1, tbl->length);
 
-    TEST_ASSERT_NOT_NULL(ht_remove(tbl, "x"));
+    ht_remove(tbl, "bar");
+    TEST_ASSERT(errno == ENOKEY);
+    TEST_ASSERT_EQUAL_INT(1, tbl->length);
+
+    TEST_ASSERT_EQUAL_STRING("x", ht_get(tbl, "x"));
+
+    res = ht_remove(tbl, "x");
+    TEST_ASSERT(errno != ENOKEY && strcmp(res, "x") == 0);
     TEST_ASSERT_EQUAL_INT(0, tbl->length);
-}
-
-static int
-__str_array_idx(char* arr[], int len, const char* val) {
-    for (int i = 0; i < len; i++) {
-        if (!strcmp(arr[i], val)) return i;
-    }
-    return -1;
 }
 
 static void
@@ -87,7 +157,7 @@ test_ht_iterator(void) {
     char *data[] = { "foo", "bar", "baz", "jane" };
     int data_len = sizeof(data) / sizeof(data[0]);
     for (int i = 0; i < data_len; i++) {
-        ht_set(tbl, data[i], data[i]);
+        ASSERT_SET_HASH(data[i], (void *)(size_t) i, hash_fnv1a(data[i]));
     }
 
     bool is_found[data_len];
@@ -95,9 +165,7 @@ test_ht_iterator(void) {
 
     hti it = ht_iterator(tbl);
     while (ht_next(&it)) {
-        int idx = __str_array_idx(data, data_len, it.current->key);
-        if (idx == -1) continue;
-        is_found[idx] = true;
+        is_found[(long) it.current->value] = true;
     }
 
     bool all_found = true;
@@ -112,37 +180,30 @@ test_ht_iterator(void) {
 
 static void
 test_ht_expand(void) {
-    // eh.
-    const char *data[] = {
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
-        "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25",
-        "26", "27", "28", "29", "30", "31", "32", "33", "34", "35",
-    };
-    const int data_len = sizeof(data) / sizeof(data[0]);
+    size_t num = 150; // with N starting at 8, should cause ht_expand() 3 times
 
-    size_t n;
-    for (int i = 0; i < data_len; i++) {
-        n = i + 1; // cannot be 0
-        TEST_ASSERT_EQUAL_INT(n, ht_set(tbl, data[i], (void *)n));
+    size_t i;
+    for (i = 0; i < num; ++i) {
+        ASSERT_SET_HASH((void *) i, (void *) i, i);
     }
 
-    TEST_ASSERT_EQUAL_INT_MESSAGE(data_len, tbl->length, "wrong num_elements");
+    TEST_ASSERT_EQUAL_INT(num, tbl->length);
 
-    bool is_found[data_len];
-    memset(is_found, 0, data_len);
+    bool is_found[num];
+    memset(is_found, 0, num);
 
     hti it = ht_iterator(tbl);
     size_t idx;
     while (ht_next(&it)) {
         idx = (size_t) it.current->value;
-        is_found[idx - 1] = true;
+        is_found[idx] = true;
     }
 
     bool all_found = true;
-    for (int i = 0; i < data_len; i++) {
+    for (i = 0; i < num; i++) {
         if (!is_found[i]) {
             all_found = false;
-            printf("could not find %s\n", data[i]);
+            printf("could not find %zu\n", i);
         }
     }
     TEST_ASSERT(all_found);
