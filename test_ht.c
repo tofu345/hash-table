@@ -54,20 +54,20 @@ void *res;
 // check if ht_set_hash(key, val, hash) == val
 #define ASSERT_SET_HASH(key, val, hash) \
     res = ht_set_hash(tbl, key, val, hash); \
-    TEST_ASSERT_EQUAL_PTR(res, val); \
-    TEST_ASSERT(errno != ENOMEM);
+    TEST_ASSERT(errno != ENOMEM); \
+    TEST_ASSERT_EQUAL_PTR(res, val);
 
 // check if ht_get_hash(key, val) == val
 #define ASSERT_GET(key, val) \
     res = ht_get(tbl, key); \
-    TEST_ASSERT_EQUAL_STRING(res, val); \
-    TEST_ASSERT(errno != ENOKEY);
+    TEST_ASSERT(errno != ENOKEY); \
+    TEST_ASSERT_EQUAL_STRING(res, val);
 
 // check if ht_get_hash(hash, val) == val
 #define ASSERT_GET_HASH(hash, val) \
     res = ht_get_hash(tbl, hash); \
-    TEST_ASSERT_EQUAL_PTR(res, val); \
-    TEST_ASSERT(errno != ENOKEY);
+    TEST_ASSERT(errno != ENOKEY); \
+    TEST_ASSERT_EQUAL_PTR(res, val);
 
 static void
 test_ht_set_get(void) {
@@ -105,7 +105,7 @@ test_ht_set_get(void) {
 static void
 test_ht_remove(void) {
     ASSERT_SET("foo", "foo");
-    ASSERT_SET("x", "x");   // collides with "foo" with FNV-a, will be in same bucket.
+    ASSERT_SET("x", "x");   // collides with "foo" with FNV-1a, will be in same bucket.
     ASSERT_SET("bar", "bar");
     TEST_ASSERT_EQUAL_INT(3, tbl->length);
 
