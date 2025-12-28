@@ -82,6 +82,7 @@ bucket_get_value(ht_bucket *bucket, uint64_t hash) {
         }
         bucket = bucket->overflow;
     }
+    errno = ENOKEY;
     return NULL;
 }
 
