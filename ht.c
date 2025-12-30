@@ -73,8 +73,7 @@ bucket_get_value(ht_bucket *bucket, uint64_t hash) {
     while (bucket != NULL) {
         for (size_t i = 0; i < N; i++) {
             if (!bucket->filled[i]) {
-                errno = ENOKEY;
-                return NULL;
+                break;
             }
             if (bucket->hashes[i] == hash) {
                 return bucket->entries[i].value;

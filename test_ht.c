@@ -152,16 +152,10 @@ test_ht_remove(void) {
     TEST_ASSERT_EQUAL_INT(0, tbl->length);
 }
 
-static void
-test_ht_iterator(void) {
-    char *data[] = { "foo", "bar", "baz", "jane" };
-    int data_len = sizeof(data) / sizeof(data[0]);
-    for (int i = 0; i < data_len; i++) {
-        ASSERT_SET_HASH(data[i], (void *)(size_t) i, hash_fnv1a(data[i]));
-    }
-
-    bool is_found[data_len];
-    memset(is_found, 0, data_len);
+static bool
+ht_contains_up_integers_to(int num) {
+    bool is_found[num];
+    memset(is_found, 0, num);
 
     hti it = ht_iterator(tbl);
     while (ht_next(&it)) {
@@ -169,44 +163,51 @@ test_ht_iterator(void) {
     }
 
     bool all_found = true;
-    for (int i = 0; i < data_len; i++) {
+    for (int i = 0; i < num; i++) {
         if (!is_found[i]) {
             all_found = false;
-            printf("could not find %s\n", data[i]);
+            printf("could not find %d\n", i);
         }
     }
-    TEST_ASSERT(all_found);
+    return all_found;
+}
+
+static void
+test_ht_iterator(void) {
+    char *keys[] = { "foo", "bar", "baz", "jane" };
+    int len = sizeof(keys) / sizeof(keys[0]);
+    for (int i = 0; i < len; i++) {
+        ASSERT_SET_HASH(keys[i], (void *)(size_t) i, hash_fnv1a(keys[i]));
+    }
+    TEST_ASSERT(ht_contains_up_integers_to(len));
 }
 
 static void
 test_ht_expand(void) {
-    size_t num = 150; // with N starting at 8, should cause ht_expand() 3 times
-
-    size_t i;
+    size_t i, num = 150; // with N starting at 8, should cause ht_expand() 3 times
     for (i = 0; i < num; ++i) {
         ASSERT_SET_HASH((void *) i, (void *) i, i);
     }
-
     TEST_ASSERT_EQUAL_INT(num, tbl->length);
+    TEST_ASSERT(ht_contains_up_integers_to(num));
 
-    bool is_found[num];
-    memset(is_found, 0, num);
+    // remove and reinsert some data
+    int skip = 5;
+    for (size_t i = 0; i < num; i += skip) {
+        ht_remove_hash(tbl, i);
+        if (errno == ENOKEY) {
+            printf("could not find key at middle - keys[%ld]", i);
+            TEST_FAIL();
+        }
 
-    hti it = ht_iterator(tbl);
-    size_t idx;
-    while (ht_next(&it)) {
-        idx = (size_t) it.current->value;
-        is_found[idx] = true;
-    }
-
-    bool all_found = true;
-    for (i = 0; i < num; i++) {
-        if (!is_found[i]) {
-            all_found = false;
-            printf("could not find %zu\n", i);
+        ht_set_hash(tbl, (void *) i, (void *) i, i);
+        if (errno == ENOMEM) {
+            printf("could not set key at middle - keys[%ld]", i);
+            TEST_FAIL();
         }
     }
-    TEST_ASSERT(all_found);
+
+    TEST_ASSERT(ht_contains_up_integers_to(num));
 }
 
 int main(void) {
