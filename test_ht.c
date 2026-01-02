@@ -105,6 +105,12 @@ test_ht_set_get(void) {
 static void
 test_ht_remove(void) {
     ASSERT_SET("foo", "foo");
+
+    res = ht_remove(tbl, "foo");
+    TEST_ASSERT(errno != ENOKEY && strcmp(res, "foo") == 0);
+    TEST_ASSERT_EQUAL_INT(0, tbl->length);
+
+    ASSERT_SET("foo", "foo");
     ASSERT_SET("x", "x");   // collides with "foo" with FNV-1a, will be in same bucket.
     ASSERT_SET("bar", "bar");
     TEST_ASSERT_EQUAL_INT(3, tbl->length);

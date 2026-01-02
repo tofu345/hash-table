@@ -222,7 +222,7 @@ ht_remove_hash(ht *table, uint64_t hash) {
             }
             if (bucket->hashes[i] == hash) {
                 // find last filled entry
-                int last = i + 1;
+                int last = i;
                 for (; last < N - 1 && bucket->filled[last + 1]; last++) {}
 
                 void *val = bucket->entries[i].value;
